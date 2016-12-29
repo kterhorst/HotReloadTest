@@ -10,6 +10,8 @@
 #define MODULE1_API __declspec(dllimport)
 #endif
 
+#include "../HRSupport/HRSupport.h"
+
 #include <functional>
 
 struct ICalculator

@@ -34,11 +34,6 @@ public:
 private:
 	int m_SomeValue = 1337;
 	int m_NewField1 = 0;
-
-	// Adding new fields at runtime doesn't work for obvious reasons.
-	// This can be circumvented by adding a placeholder memory buffer.
-	// Thus new fields will then overlap with it.
-	char _placeholder_[128] = {};
 };
 
 extern "C" MODULE1_API ICalculator* NewCalculator(void)
