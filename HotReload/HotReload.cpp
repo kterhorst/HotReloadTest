@@ -34,6 +34,64 @@ std::string RemoveFileExtension(const std::string& path)
 		return path;
 	return path.substr(0, lastindex);
 }
+
+struct DirectoryEntry
+{
+	std::string path;
+};
+
+class DirectoryFiles
+{
+public:
+	DirectoryFiles(const std::string& path)
+	{
+		std::string _path;
+		if (path.size() > 0 && path[path.size() - 1] != '\\')
+			_path = path + "\\";
+		else
+			_path = path;
+		WIN32_FIND_DATAA ffd;
+		m_hFind = FindFirstFileA((_path + "*.*").data(), &ffd);
+		if (m_hFind == INVALID_HANDLE_VALUE)
+			return;
+		do
+		{
+			if (!(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+			{
+				m_Files.push_back(DirectoryEntry{ _path + ffd.cFileName });
+			}
+		} while (FindNextFileA(m_hFind, &ffd) != 0);
+	}
+
+	auto begin()
+	{
+		return m_Files.begin();
+	}
+
+	auto end()
+	{
+		return m_Files.end();
+	}
+
+private:
+	HANDLE m_hFind;
+	std::vector<DirectoryEntry> m_Files;
+};
+
+void RemoveFile(const std::string& path)
+{
+	DeleteFileA(path.data());
+}
+
+void RemoveFilesInDirectory(const std::string& path)
+{
+	DirectoryFiles files(path);
+	for (auto& file : files)
+	{
+		printf("<%s>\n", file.path.data());
+		RemoveFile(file.path);
+	}
+}
 }
 
 struct Symbol
@@ -208,8 +266,13 @@ bool ReadMapFile(SymbolMap& outMapFile, const std::string& mapFilePath)
 
 struct LoadedModule
 {
+	// Name of the module, e.g. "MyModule.dll"
 	std::string name;
+
+	// Path to the module file that was loaded into memory,
+	// e.g. "hotreload\MyModule.dll.14831529779191082"
 	std::string path;
+
 	HMODULE moduleHandle = nullptr;
 	std::unique_ptr<SymbolMap> symbolMap;
 
@@ -221,7 +284,25 @@ struct LoadedModule
 
 struct Environment
 {
-	std::unique_ptr<LoadedModule> loadedModule;
+	//std::unique_ptr<LoadedModule> loadedModule;
+	std::vector<std::unique_ptr<LoadedModule>> loadedModules;
+
+#if HR_CLEAR_HOTRELOAD_DIRECTORY_ON_START
+	Environment()
+	{
+		Detail::RemoveFilesInDirectory("hotreload");
+	}
+#endif
+
+	LoadedModule* FindModule(const std::string& name)
+	{
+		for (auto& module : loadedModules)
+		{
+			if (module->name == name)
+				return module.get();
+		}
+		return nullptr;
+	}
 };
 
 Environment& GetEnvironment()
@@ -279,18 +360,18 @@ bool LoadModule(Environment& env,
 
 	Detail::LoadModuleLibrary(*moduleToLoad);
 
-	if (!env.loadedModule)
+	LoadedModule* moduleToReplace = env.FindModule(name);
+	if (!moduleToReplace)
 	{
 		// If no previous module was loaded we are done.
-		env.loadedModule = std::move(moduleToLoad);
+		env.loadedModules.push_back(std::move(moduleToLoad));
 		printf("Module %s loaded!\n", name.data());
 		return true;
 	}
 
 	// Another instance of the module was already loaded and needs to be patched.
-	auto moduleToReplace = env.loadedModule.get();
-
-	// Fix up the symbols
+	
+	// Patch the previous version of the module.
 	for (auto& symToPatch : *moduleToReplace->symbolMap)
 	{
 		auto symToLoad = moduleToLoad->symbolMap->FindSymbol(symToPatch->name);
@@ -363,7 +444,7 @@ bool LoadModule(Environment& env,
 		}
 	}
 
-	env.loadedModule = std::move(moduleToLoad);
+	env.loadedModules.push_back(std::move(moduleToLoad));
 	printf("Module %s reloaded!\n", name.data());
 	return true;
 }
@@ -379,23 +460,21 @@ HMODULE HR_LoadLibraryA(LPCSTR lpLibFileName)
 {
 	std::string moduleName = lpLibFileName;
 	auto& env = HotReload::GetEnvironment();
-	if (env.loadedModule != nullptr && env.loadedModule->name != moduleName)
-	{
-		// Currently we only support one module.
-		return NULL;
-	}
 	std::string mapFilePath = 
 		HotReload::Detail::RemoveFileExtension(moduleName) + ".map";
 	if (!HotReload::LoadModule(env, moduleName, moduleName, mapFilePath))
 	{
 		return NULL;
 	}
-	return env.loadedModule->moduleHandle;
+	return env.FindModule(moduleName)->moduleHandle;
 }
 
 extern "C"
 HOTRELOAD_API
 HMODULE HR_GetModuleHandle(LPCSTR lpLibFileName)
 {
-	return nullptr;
+	HotReload::LoadedModule* module = 
+		HotReload::GetEnvironment().FindModule(lpLibFileName);
+
+	return module->moduleHandle ? module->moduleHandle : nullptr;
 }

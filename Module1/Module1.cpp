@@ -18,7 +18,7 @@ public:
 	{
 		int z;
 		AnotherFunction(z);
-		return x + y + z;
+		return 1337 + x + y + 2 * z;
 	}
 
 	std::function<int()> GetSomeLambda() override
@@ -34,6 +34,7 @@ public:
 private:
 	int m_SomeValue = 1337;
 	int m_NewField1 = 0;
+	HR_ALLOW_FIELD_EXTENSION;
 };
 
 extern "C" MODULE1_API ICalculator* NewCalculator(void)

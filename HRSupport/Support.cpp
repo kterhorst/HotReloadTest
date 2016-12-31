@@ -5,7 +5,7 @@
 #include "stdafx.h"
 #include "HRSupport.h"
 
-#if HR_ALLOC_ADDITIONAL_SPACE_TO_HEAP_OBJECTS
+#if HR_ENABLED && HR_ALLOC_ADDITIONAL_SPACE_TO_HEAP_OBJECTS
 
 #pragma warning(disable : 4290)
 

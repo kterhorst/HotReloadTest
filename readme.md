@@ -2,3 +2,13 @@ Just toying around with the idea of hot patching a DLL at runtime by using the .
 I didn't focus on code quality, safe memory usage, compatibility or anything else.
 
 Note: It was compiled and tested using Visual Studio 2017 RC and it only supports the x64 architecture.
+
+To try it:
+ 1. Compile the solution.
+ 2. Run the Test\Host project without debugging enabled. If debugging is turned on, VS wants you
+   to cancel the execution prior to rebuilding one of the test modules.
+ 3. Check the results returned by the test modules in the console window.
+ 4. Don't close the app yet. Go to one of the test modules and change some function.
+ 5. Recompile the module that you changed.
+ 6. Press any key to hot-reload the test modules.
+ 7. Go to 3.
